@@ -83,6 +83,7 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
                 return i;
             }
 
+            // fragment shader
             float4 fp(v2f i) : SV_TARGET {
                 // you have to do this multiplication to get more than exactly one strand of hair
                 float2 newUV = i.uv *_Density;
@@ -99,31 +100,18 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
 
                 float rand = hash(seed);
 
-                // discard pixels that aren't to be rendered:
-                int outsideThickness = (localDistanceFromCenter) > (_Thickness * (rand - h));
+                // discard pixels that aren't in the hair thickness (this is what gives us round tapered strands)
+                int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - h));
+                if (out_of_scope && _ShellIndex > 0) discard;
 
-                // This culls the pixel if it is outside the thickness of the strand, it also ensures that the base shell is fully opaque that way there aren't
-                // any real holes in the mesh, although there's certainly better ways to do that
-                if (outsideThickness && _ShellIndex > 0) discard;
-
-                // This is the lighting output since at this point we have determined we are not discarding the pixel, so we have to color it
-                // This lighting model is a modification of the Valve's half lambert as described in the video. It is not physically based, but it looks cool I think.
-                // What's going on here is we take the dot product between the normal and the direction of the main Unity light source (the sun) which returns a value
-                // between -1 to 1, which is then clamped to 0 to 1 by the DotClamped function provided by Unity, we then convert the 0 to 1 to 0.5 to 1 with the following
-                // multiplication and addition.
+                // lighting stolen from valve, it's their half-lambert
                 float ndotl = DotClamped(i.normal, _WorldSpaceLightPos0) * 0.5f + 0.5f;
-
-                // Valve's half lambert squares the ndotl output, which is going to bring values down, once again you can see how this looks on desmos by graphing x^2
                 ndotl = ndotl * ndotl;
 
-                // In order to fake ambient occlusion, we take the normalized shell height and take it to an attenuation exponent, which will do the same exact thing
-                // I have explained that exponents will do to numbers between 0 and 1. A higher attenuation value means the occlusion of ambient light will become much stronger,
-                // as the number is brought down closer to 0, and if we multiply a color with 0 then it'll be black aka in shadow.
+                // occlusion
                 float ambientOcclusion = pow(h, _Attenuation);
-
-                // This is a additive bias on the ambient occlusion, if you don't want the gradient to go towards black then you can add a bit to this in order to prevent
-                // such a harsh gradient transition
                 ambientOcclusion += _OcclusionBias;
+                // TODO: can we do something to offset this occlusion for the base of strands on "top"? They shouldn't have any shadows on them!
 
                 // Since the bias can push the ambient occlusion term above 1, we want to clamp it to 0 to 1 in order to prevent breaking the laws of physics by producing
                 // more light than was received since if you multiply a color with a number greater than 1, it'll become brighter, and that just physically does not make
