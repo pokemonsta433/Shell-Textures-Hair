@@ -14,7 +14,7 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
 #pragma vertex vp
 #pragma fragment fp
 
-                // TODO: implement our own lighting stuff
+                // these don't flat-out do the lighting, see below for our actual lighting
 #include "UnityPBSLighting.cginc"
 #include "AutoLight.cginc"
 
@@ -113,12 +113,8 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
                 ambientOcclusion += _OcclusionBias;
                 // TODO: can we do something to offset this occlusion for the base of strands on "top"? They shouldn't have any shadows on them!
 
-                // Since the bias can push the ambient occlusion term above 1, we want to clamp it to 0 to 1 in order to prevent breaking the laws of physics by producing
-                // more light than was received since if you multiply a color with a number greater than 1, it'll become brighter, and that just physically does not make
-                // sense in this context
                 ambientOcclusion = saturate(ambientOcclusion);
 
-                // We put it all together down here by multiplying the color with Valve's half lambert and our fake ambient occlusion. You can remove some of these terms
                 // to see how it changes the lighting and shadowing.
                 return float4(_ShellColor * ndotl * ambientOcclusion, 1.0);
             }
