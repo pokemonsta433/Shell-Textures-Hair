@@ -1,4 +1,4 @@
-Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
+Shader "Custom/PointCloudMagic" { // I didn't rename it, should I rename it? I don't know!
     SubShader {
         Tags {
             "LightMode" = "ForwardBase"
@@ -76,7 +76,6 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
                 // this is how we get our "physics"
                 float k = pow(shellHeight, _Curvature); // power affects tips more than base
                 v.vertex.xyz += _ShellDirection * k * _DisplacementStrength; 
-                //v.vertex.xyz += _ShellDirection * k * _DisplacementStrength * -1; // invert gravity
 
                 i.pos = UnityObjectToClipPos(v.vertex);
                 i.worldPos = mul(unity_ObjectToWorld, v.vertex);
@@ -94,30 +93,26 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
                 uint seed = tid.x + 100 * tid.y + 100 * 10;
                 float shellIndex = _ShellIndex;
                 float shellCount = _ShellCount;
-                float h = shellIndex / shellCount; // h is (0-1) so we can do 1-h
+                float h = shellIndex / shellCount; // normalize again
 
                 float2 localUV = frac(newUV) * 2 - 1; //local UV is from -1 to 1
                 float localDistanceFromCenter = length(localUV);
 
-                float rand = hash(seed);
-                // float rand = 0.5; // just for testing
+                float rand = hash(seed); // whether there's a seed under me
 
-                // some better options for whatnot
-                float h_pow = pow(h, 1);
-                float h_mult = h_pow * 30; // sin 10
-                float sin_h = h * sin(h_mult);
+                // see if you are not a hair strand
+                int notStrand = (localDistanceFromCenter) > (_Thickness * (rand - h));
+                if (notStrand && _ShellIndex > 0){
+                    // not part of a hair strand. For shell texturing we would discard it, but let's see if we can't do something fun here:
 
-
-                //rand is the random value under us
-                // (rand - h) is (0-1) - 10-1
-
-                // discard pixels that aren't in the hair thickness (this is what gives us round tapered strands)
-
-                int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - h)); // this is hair
-                //int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - (1-h))); // inverted structure
-                // int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - (sin(pow(h,4))))); // bubbles?
-                // int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand -sin_h)); // inverted structure
-                if (out_of_scope && _ShellIndex > 0) discard;
+                    if (h < 0.5){
+                        if (localUV.x > -0.9 && localUV.x < 0.1 && localUV.y > -0.9 && localUV.y < 0.1){ // if it's orthogonally close
+                            int rsta = 4;
+                        }
+                        else discard;
+                    }
+                    else discard;
+                }
 
                 // lighting stolen from valve, it's their half-lambert
                 float ndotl = DotClamped(i.normal, _WorldSpaceLightPos0) * 0.5f + 0.5f;
@@ -127,6 +122,7 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
                 float ambientOcclusion = pow(h, _Attenuation);
                 ambientOcclusion += _OcclusionBias;
                 // TODO: can we do something to offset this occlusion for the base of strands on "top"? They shouldn't have any shadows on them!
+                // something to do with making the occlusion affect not just the height but height * displacement would be smart -- but the displacement is not yet sent to the fragment shader
 
                 ambientOcclusion = saturate(ambientOcclusion);
 
