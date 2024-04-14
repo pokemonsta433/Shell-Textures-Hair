@@ -97,6 +97,10 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
                 float h = shellIndex / shellCount; // h is (0-1) so we can do 1-h
 
                 float2 localUV = frac(newUV) * 2 - 1; //local UV is from -1 to 1
+
+                //<sometype> angle = angle(localUV) // figure out how to calculate this
+                // do some math to multiply h bu the angle so we get a spirally structure!
+
                 float localDistanceFromCenter = length(localUV);
 
                 float rand = hash(seed);
@@ -113,10 +117,11 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
 
                 // discard pixels that aren't in the hair thickness (this is what gives us round tapered strands)
 
-                int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - h)); // this is hair
+                // int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - h)); // this is hair
                 //int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - (1-h))); // inverted structure
-                // int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - (sin(pow(h,4))))); // bubbles?
-                // int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand -sin_h)); // inverted structure
+                //int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - (sin(30 * pow(h,1))))); // bubbles?
+                int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand -sin_h)); // wavies
+                // to add curls, you'll need something to do with the angle on LocalDistanceFromCenter
                 if (out_of_scope && _ShellIndex > 0) discard;
 
                 // lighting stolen from valve, it's their half-lambert
