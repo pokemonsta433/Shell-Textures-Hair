@@ -102,20 +102,20 @@ Shader "Custom/IndividualShell" {
                 // float rand = 0.5; // just for testing
 
                 // some better options for whatnot
-                float h_pow = pow(h, 1);
+                float h_pow = pow(h, 5);
                 float h_mult = h_pow * 30; // sin 10
-                float sin_h = h * sin(h_mult);
+                float h_sin_h = h * sin(h_mult);
 
 
                 //rand is the random value under us
                 // (rand - h) is (0-1) - 10-1
 
                 // discard pixels that aren't in the hair thickness (this is what gives us round tapered strands)
-
                 int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - h)); // this is hair
                 //int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - (1-h))); // inverted structure
                 //int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - (sin(30 * pow(h,1))))); // bubbles?
-                //int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand -sin_h)); // wavies
+                //int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - (sin(30 * h_sin_h)))); // bubbles that grow in size?
+                // int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand -h_sin_h)); // wavies
                 // to add curls, you'll need something to do with the angle on LocalDistanceFromCenter
                 if (out_of_scope && _ShellIndex > 0) discard;
 
