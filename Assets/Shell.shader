@@ -1,4 +1,4 @@
-Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
+Shader "Custom/IndividualShell" {
     SubShader {
         Tags {
             "LightMode" = "ForwardBase"
@@ -10,24 +10,20 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
 
                 CGPROGRAM
 
-                // vertex and fragment shader
+                // vertex and fragment shader names
 #pragma vertex vp
 #pragma fragment fp
 
                 // these don't flat-out do the lighting, see below for our actual lighting
-#include "UnityPBSLighting.cginc"
-#include "AutoLight.cginc"
+#include "UnityPBSLighting.cginc" // this gives us UnityObjectToWorldNormal
 
-                // This is the struct that holds all the data that vertices contain when being passed into the gpu, such as the initial vertex position,
-                // the normal, and the uv coordinates
                 struct VertexData {
                     float4 vertex : POSITION;
                     float3 normal : NORMAL;
                     float2 uv : TEXCOORD0;
                 };
 
-            // everything the vertex shader passes to the fragment shader
-            struct v2f {
+            struct world_vertex { // puts everything in world position for the fragment shader
                 float4 pos : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float3 normal : TEXCOORD1; // world position now
@@ -35,18 +31,17 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
             };
 
             int _ShellIndex; // current shell layer being acted on
-            int _ShellCount;
-            float _ShellLength; // distance covered by a shell
-            float _Density;  // initializes the noise with more or less seeds
-            float _NoiseMin, _NoiseMax;
+            int _NumShells;
+            float _ShellDistance; // distance covered by a shell
+            float _Density; // initializes the noise with more or less seeds
             float _Thickness;
-            float _Attenuation; // exponent on shell height. This gives a fake ambient occlusion effect.
-            float _OcclusionBias; // very important. Adds a constant to ambient occlusion so the lighting is less harsh and it looks like in-scattering is happening
-            float _ShellDistanceAttenuation;
+            float _Occlusion; // exponentially darkens lower shells to approximate light occlusion
+            float _OcclusionBias; // Adds a constant to ambient occlusion so the lighting is less harsh and it looks like in-scattering is happening
+            float _HeightBias;
             float _Curvature; // in practice it's just stiffness
             float _DisplacementStrength; // complicated
             float3 _ShellColor; // somehow also complicated!
-            float3 _ShellDirection; // The direction that shells move. Usually gravity but if an object is moving you want to change this. CPU does this per-frame
+            float3 _DisplacementVector;
             float _DebugOutVal;
 
             // it seems that all performant programs use a hash function to generate noise. Here is one recommended by a graphics guy online
@@ -61,22 +56,22 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
             // or just ANYTHING on shadertoy
 
             //vertex shader
-            v2f vp(VertexData v) {
-                v2f i;
+            world_vertex vp(VertexData v) {
+                world_vertex i;
                 i.uv = v.uv;
                 i.normal = normalize(UnityObjectToWorldNormal(v.normal));
 
-                // normalize the shell hight between 0 and 1 and apply the attenuation (to bias more shells towards the base)
-                float shellHeight = (float)_ShellIndex / (float)_ShellCount;
-                shellHeight = pow(shellHeight, _ShellDistanceAttenuation);
+                // normalize the shell hight between 0 and 1 and apply the bias
+                float shellHeight = (float)_ShellIndex / (float)_NumShells;
+                shellHeight = pow(shellHeight, _HeightBias);
 
                 // we can't just set our y value to be an addition of the surface anymore, so we calculate a normal to the object
-                v.vertex.xyz += v.normal.xyz * _ShellLength * shellHeight;
+                v.vertex.xyz += v.normal.xyz * _ShellDistance * shellHeight;
 
                 // this is how we get our "physics"
                 float k = pow(shellHeight, _Curvature); // power affects tips more than base
-                v.vertex.xyz += _ShellDirection * k * _DisplacementStrength; 
-                //v.vertex.xyz += _ShellDirection * k * _DisplacementStrength * -1; // invert gravity
+                v.vertex.xyz += _DisplacementVector * k * _DisplacementStrength; 
+                //v.vertex.xyz += _DisplacementVector * k * _DisplacementStrength * -1; // invert gravity
 
                 i.pos = UnityObjectToClipPos(v.vertex);
                 i.worldPos = mul(unity_ObjectToWorld, v.vertex);
@@ -85,15 +80,15 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
             }
 
             // fragment shader
-            float4 fp(v2f i) : SV_TARGET {
+            float4 fp(world_vertex i) : SV_TARGET {
                 // you have to do this multiplication to get more than exactly one strand of hair
                 float2 newUV = i.uv *_Density;
 
                 // just a ton of typeCasts to make everything line up nicely
                 uint2 tid = newUV;
-                uint seed = tid.x + 100 * tid.y + 100 * 10;
+                uint seed = tid.x + 100 * tid.y + 100 * 2; // messing with these parameters creates interesting combing
                 float shellIndex = _ShellIndex;
-                float shellCount = _ShellCount;
+                float shellCount = _NumShells;
                 float h = shellIndex / shellCount; // h is (0-1) so we can do 1-h
 
                 float2 localUV = frac(newUV) * 2 - 1; //local UV is from -1 to 1
@@ -117,26 +112,26 @@ Shader "Custom/Water" { // I didn't rename it, should I rename it? I don't know!
 
                 // discard pixels that aren't in the hair thickness (this is what gives us round tapered strands)
 
-                // int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - h)); // this is hair
+                int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - h)); // this is hair
                 //int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - (1-h))); // inverted structure
                 //int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand - (sin(30 * pow(h,1))))); // bubbles?
-                int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand -sin_h)); // wavies
+                //int out_of_scope = (localDistanceFromCenter) > (_Thickness * (rand -sin_h)); // wavies
                 // to add curls, you'll need something to do with the angle on LocalDistanceFromCenter
                 if (out_of_scope && _ShellIndex > 0) discard;
 
                 // lighting stolen from valve, it's their half-lambert
-                float ndotl = DotClamped(i.normal, _WorldSpaceLightPos0) * 0.5f + 0.5f;
-                ndotl = ndotl * ndotl;
+                float half_lambert = DotClamped(i.normal, _WorldSpaceLightPos0) * 0.5f + 0.5f;
+                half_lambert = half_lambert * half_lambert;
 
                 // occlusion
-                float ambientOcclusion = pow(h, _Attenuation);
+                float ambientOcclusion = pow(h, _Occlusion);
                 ambientOcclusion += _OcclusionBias;
                 // TODO: can we do something to offset this occlusion for the base of strands on "top"? They shouldn't have any shadows on them!
 
                 ambientOcclusion = saturate(ambientOcclusion);
 
                 // to see how it changes the lighting and shadowing.
-                return float4(_ShellColor * ndotl * ambientOcclusion, 1.0);
+                return float4(_ShellColor * half_lambert * ambientOcclusion, 1.0);
             }
 
             ENDCG

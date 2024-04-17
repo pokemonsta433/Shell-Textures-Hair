@@ -15,39 +15,33 @@ public class SimpleShell : MonoBehaviour {
 
     // sliders for all of our details
     [Range(1, 256)]
-    public int shellCount = 16;
+    public int numShells = 256;
 
     [Range(0.0f, 1.0f)]
-    public float shellLength = 0.15f;
+    public float shellDistance = 0.644f;
 
     [Range(0.01f, 3.0f)]
-    public float distanceAttenuation = 1.0f;
+    public float heightBias = 1.4f;
 
     [Range(1.0f, 1000.0f)]
-    public float density = 100.0f;
-
-    [Range(0.0f, 1.0f)]
-    public float noiseMin = 0.0f;
-
-    [Range(0.0f, 1.0f)]
-    public float noiseMax = 1.0f;
+    public float density = 141.0f;
 
     [Range(0.0f, 10.0f)]
-    public float thickness = 1.0f;
+    public float thickness = 10.0f;
 
     [Range(0.0f, 10.0f)]
-    public float curvature = 1.0f;
+    public float curvature = 2.59f;
 
     [Range(0.0f, 1.0f)]
-    public float displacementStrength = 0.1f;
+    public float displacementStrength = 0.193f;
 
     public Color shellColor;
 
     [Range(0.0f, 5.0f)]
-    public float occlusionAttenuation = 1.0f;
+    public float Occlusion = 5.0f;
 
     [Range(0.0f, 1.0f)]
-    public float occlusionBias = 0.0f;
+    public float occlusionBias = 0.042f;
 
     [Range(0.0f, 4.0f)]
     public float meshScale = 1.0f;
@@ -86,10 +80,10 @@ public class SimpleShell : MonoBehaviour {
                 verts[v] *= meshScale;
                 alterable_mesh.vertices = verts;
                 alterable_mesh.RecalculateNormals();
+                // somewhere along the line I did something wrong and the gorilla now takes YEARS to recalculate normals. I have no clue what happened there
             }
         }
-        if (x_rotation != 0){
-            // I was really hoping to rotate things this way but no such luck
+        if (x_rotation != 0){ // This saves some computation time if we aren't rotating, but as a side-effect you need to set x-rotation to a nonzero value if you want to rotate the mesh along any axis. Luckily, 365 is a legal rotation, so you can set it to 365 and it will still rotate. Or you can just set it to a small value like 1.
             Vector3[] verts = alterable_mesh.vertices;
             Vector3 center = new Vector3(0,0,0); // rotate around origin
             Quaternion rotationQuaternion = new Quaternion();
@@ -104,9 +98,9 @@ public class SimpleShell : MonoBehaviour {
 
         shellMaterial = new Material(shellShader);
 
-        shells = new GameObject[shellCount];
+        shells = new GameObject[numShells];
 
-        for (int i = 0; i < shellCount; ++i) {
+        for (int i = 0; i < numShells; ++i) {
             shells[i] = new GameObject("Shell " + i.ToString());
             shells[i].AddComponent<MeshFilter>();
             shells[i].AddComponent<MeshRenderer>();
@@ -116,18 +110,16 @@ public class SimpleShell : MonoBehaviour {
             shells[i].transform.SetParent(this.transform, false);
 
             // values that get sent to GPU.
-            shells[i].GetComponent<MeshRenderer>().material.SetInt("_ShellCount", shellCount);
+            shells[i].GetComponent<MeshRenderer>().material.SetInt("_NumShells", numShells);
             shells[i].GetComponent<MeshRenderer>().material.SetInt("_ShellIndex", i);
-            shells[i].GetComponent<MeshRenderer>().material.SetFloat("_ShellLength", shellLength);
+            shells[i].GetComponent<MeshRenderer>().material.SetFloat("_ShellDistance", shellDistance);
             shells[i].GetComponent<MeshRenderer>().material.SetFloat("_Density", density);
             shells[i].GetComponent<MeshRenderer>().material.SetFloat("_Thickness", thickness);
-            shells[i].GetComponent<MeshRenderer>().material.SetFloat("_Attenuation", occlusionAttenuation);
-            shells[i].GetComponent<MeshRenderer>().material.SetFloat("_ShellDistanceAttenuation", distanceAttenuation);
+            shells[i].GetComponent<MeshRenderer>().material.SetFloat("_Occlusion", Occlusion);
+            shells[i].GetComponent<MeshRenderer>().material.SetFloat("_HeightBias", heightBias);
             shells[i].GetComponent<MeshRenderer>().material.SetFloat("_Curvature", curvature);
             shells[i].GetComponent<MeshRenderer>().material.SetFloat("_DisplacementStrength", displacementStrength);
             shells[i].GetComponent<MeshRenderer>().material.SetFloat("_OcclusionBias", occlusionBias);
-            shells[i].GetComponent<MeshRenderer>().material.SetFloat("_NoiseMin", noiseMin);
-            shells[i].GetComponent<MeshRenderer>().material.SetFloat("_NoiseMax", noiseMax);
             shells[i].GetComponent<MeshRenderer>().material.SetVector("_ShellColor", shellColor);
         }
     }
@@ -138,11 +130,10 @@ public class SimpleShell : MonoBehaviour {
         Vector3 direction = new Vector3(0, 0, 0);
         Vector3 oppositeDirection = new Vector3(0, 0, 0);
 
-        // This determines the direction we are moving from wasd input. It's probably a better idea to use Unity's input system, since it handles
-        // all possible input devices at once, but I did it the old fashioned way for simplicity.
-        direction.x = Convert.ToInt32(Input.GetKey(KeyCode.D)) - Convert.ToInt32(Input.GetKey(KeyCode.A));
-        direction.y = Convert.ToInt32(Input.GetKey(KeyCode.W)) - Convert.ToInt32(Input.GetKey(KeyCode.S));
-        direction.z = Convert.ToInt32(Input.GetKey(KeyCode.Q)) - Convert.ToInt32(Input.GetKey(KeyCode.E));
+        // Easiest way change the gravity vector based on pressed keys
+        direction.x = Convert.ToInt32(Input.GetKey(KeyCode.D)) - Convert.ToInt32(Input.GetKey(KeyCode.A)); // x axis
+        direction.y = Convert.ToInt32(Input.GetKey(KeyCode.W)) - Convert.ToInt32(Input.GetKey(KeyCode.S)); // y axis
+        direction.z = Convert.ToInt32(Input.GetKey(KeyCode.Q)) - Convert.ToInt32(Input.GetKey(KeyCode.E)); // z axis
 
         // calculate movement
         Vector3 currentPosition = this.transform.position;
@@ -156,22 +147,20 @@ public class SimpleShell : MonoBehaviour {
         if (displacementDirection.magnitude > 1) displacementDirection.Normalize();
 
         // more performant to set this as a global variable once than as a property of all n shells
-        Shader.SetGlobalVector("_ShellDirection", displacementDirection);
+        Shader.SetGlobalVector("_DisplacementVector", displacementDirection);
 
         if (updateStatics) { // generally leave this off, but you gotta toggle it if you change the script in preview mode
-            for (int i = 0; i < shellCount; ++i) {
-                shells[i].GetComponent<MeshRenderer>().material.SetInt("_ShellCount", shellCount);
+            for (int i = 0; i < numShells; ++i) {
+                shells[i].GetComponent<MeshRenderer>().material.SetInt("_NumShells", numShells);
                 shells[i].GetComponent<MeshRenderer>().material.SetInt("_ShellIndex", i);
-                shells[i].GetComponent<MeshRenderer>().material.SetFloat("_ShellLength", shellLength);
+                shells[i].GetComponent<MeshRenderer>().material.SetFloat("_ShellDistance", shellDistance);
                 shells[i].GetComponent<MeshRenderer>().material.SetFloat("_Density", density);
                 shells[i].GetComponent<MeshRenderer>().material.SetFloat("_Thickness", thickness);
-                shells[i].GetComponent<MeshRenderer>().material.SetFloat("_Attenuation", occlusionAttenuation);
-                shells[i].GetComponent<MeshRenderer>().material.SetFloat("_ShellDistanceAttenuation", distanceAttenuation);
+                shells[i].GetComponent<MeshRenderer>().material.SetFloat("_Occlusion", Occlusion);
+                shells[i].GetComponent<MeshRenderer>().material.SetFloat("_HeightBias", heightBias);
                 shells[i].GetComponent<MeshRenderer>().material.SetFloat("_Curvature", curvature);
                 shells[i].GetComponent<MeshRenderer>().material.SetFloat("_DisplacementStrength", displacementStrength);
                 shells[i].GetComponent<MeshRenderer>().material.SetFloat("_OcclusionBias", occlusionBias);
-                shells[i].GetComponent<MeshRenderer>().material.SetFloat("_NoiseMin", noiseMin);
-                shells[i].GetComponent<MeshRenderer>().material.SetFloat("_NoiseMax", noiseMax);
                 shells[i].GetComponent<MeshRenderer>().material.SetVector("_ShellColor", shellColor);
             }
         }
