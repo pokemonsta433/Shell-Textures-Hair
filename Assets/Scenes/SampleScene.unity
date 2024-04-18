@@ -167,21 +167,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f7e1f48ed03b04c4dba2b9d3d63eee53, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  shellMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+  shellMesh: {fileID: 4161426525191563115, guid: 7efd28e55d13c524da396b43f00b86ae, type: 3}
+  alterable_mesh: {fileID: 0}
   shellShader: {fileID: 4800000, guid: ebce530a4f00d2f45a0afa93a5c575e0, type: 3}
   updateStatics: 1
-  shellCount: 256
-  shellLength: 0.15
-  distanceAttenuation: 1
-  density: 366
-  noiseMin: 0
-  noiseMax: 1
-  thickness: 3.53
-  curvature: 1
-  displacementStrength: 0.1
-  shellColor: {r: 0.7529412, g: 0.5424671, b: 0.4392157, a: 0}
-  occlusionAttenuation: 2.04
-  occlusionBias: 0
+  numShells: 256
+  shellDistance: 0.644
+  heightBias: 1.4
+  density: 141
+  thickness: 10
+  curvature: 2.53
+  displacementStrength: 0.193
+  shellColor: {r: 0, g: 0.5566038, b: 0.00006741398, a: 0}
+  Occlusion: 5
+  occlusionBias: 0.043
+  meshScale: 1
+  x_rotation: 0
+  y_rotation: 0
+  z_rotation: 0
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
